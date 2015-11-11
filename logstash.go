@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/gliderlabs/logspout/router"
 )
@@ -37,6 +38,16 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	}, nil
 }
 
+func envLookup(env []string, key string) string {
+	for _, e := range env {
+		data := strings.SplitN(e, "=", 2)
+		if data[0] == key {
+			return data[1]
+		}
+	}
+	return ""
+}
+
 // Stream implements the router.LogAdapter interface.
 func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 	for m := range logstream {
@@ -46,6 +57,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
+			TaskID:   envLookup(m.Container.Config.Env, "MESOS_TASK_ID"),
 		}
 		js, err := json.Marshal(msg)
 		if err != nil {
@@ -67,4 +79,5 @@ type LogstashMessage struct {
 	ID       string `json:"docker.id"`
 	Image    string `json:"docker.image"`
 	Hostname string `json:"docker.hostname"`
+	TaskID   string `json:"mesos.task_id"`
 }
