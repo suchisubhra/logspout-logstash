@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"reflect"
 	"strings"
 
 	"github.com/gliderlabs/logspout/router"
@@ -30,6 +31,14 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	conn, err := transport.Dial(route.Address, route.Options)
 	if err != nil {
 		return nil, err
+	}
+
+	if reflect.TypeOf(conn).String() == "*net.TCPConn" {
+		tcpconn := conn.(*net.TCPConn)
+		err = tcpconn.SetKeepAlive(true)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &LogstashAdapter{
