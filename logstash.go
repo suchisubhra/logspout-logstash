@@ -87,24 +87,50 @@ func envLookup(env []string, key string) string {
 // Stream implements the router.LogAdapter interface.
 func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 	for m := range logstream {
-		msg := LogstashMessage{
-			Message: m.Data,
-			Docker: DockerInfo{
-				Name:     m.Container.Name,
-				ID:       m.Container.ID,
-				Image:    m.Container.Config.Image,
-				Hostname: m.Container.Config.Hostname,
-			},
-			Mesos: MesosInfo{
-				TaskID: envLookup(m.Container.Config.Env, "MESOS_TASK_ID"),
-			},
-		}
-		js, err := json.Marshal(msg)
-		js = append(js, '\n')
+		var js []byte
 
+		var jsonMsg map[string]interface{}
+		err := json.Unmarshal([]byte(m.Data), &jsonMsg)
 		if err != nil {
-			log.Println("logstash:", err)
-			continue
+			// the message is not in JSON make a new JSON message
+			msg := LogstashMessage{
+				Message: m.Data,
+				Docker: DockerInfo{
+					Name:     m.Container.Name,
+					ID:       m.Container.ID,
+					Image:    m.Container.Config.Image,
+					Hostname: m.Container.Config.Hostname,
+				},
+				Mesos: MesosInfo{
+					TaskID: envLookup(m.Container.Config.Env, "MESOS_TASK_ID"),
+				},
+			}
+			js, err = json.Marshal(msg)
+			js = append(js, '\n')
+			if err != nil {
+				log.Println("logstash:", err)
+				continue
+			}
+		} else {
+			// the message is already in JSON just add the docker specific fields as a nested structure
+			var dockerInfo = make(map[string]interface{})
+
+			dockerInfo["name"] = m.Container.Name
+			dockerInfo["id"] = m.Container.ID
+			dockerInfo["image"] = m.Container.Config.Image
+			dockerInfo["hostname"] = m.Container.Config.Hostname
+
+			jsonMsg["docker"] = dockerInfo
+
+			jsonMsg["mesos"] = MesosInfo{
+				TaskID: envLookup(m.Container.Config.Env, "MESOS_TASK_ID"),
+			}
+
+			js, err = json.Marshal(jsonMsg)
+			if err != nil {
+				log.Println("logstash:", err)
+				continue
+			}
 		}
 
 		_, err = a.conn.Write(js)
