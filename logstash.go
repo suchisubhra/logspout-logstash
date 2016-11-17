@@ -93,9 +93,6 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
 		}
-		mesosInfo := MesosInfo{
-			TaskID: envLookup(m.Container.Config.Env, "MESOS_TASK_ID"),
-		}
 		kubeInfo := KubernetesInfo{
 			Pod: m.Container.Config.Labels["io.kubernetes.pod.name"],
 		}
@@ -107,8 +104,8 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			// the message is not in JSON make a new JSON message
 			msg := LogstashMessage{
 				Message:    m.Data,
+                                Stream:  m.Source,
 				Docker:     dockerInfo,
-				Mesos:      mesosInfo,
 				Kubernetes: kubeInfo,
 			}
 			js, err = json.Marshal(msg)
@@ -120,9 +117,10 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		} else {
 			// the message is already in JSON just add extra fields as a nested structures
 			jsonMsg["docker"] = dockerInfo
-			jsonMsg["mesos"] = mesosInfo
+                        data["stream"] = m.Source
 			jsonMsg["kubernetes"] = kubeInfo
 
+                        // Return the JSON encoding
 			js, err = json.Marshal(jsonMsg)
 			if err != nil {
 				log.Println("logstash:", err)
@@ -160,8 +158,8 @@ type KubernetesInfo struct {
 
 // LogstashMessage is a simple JSON input to Logstash.
 type LogstashMessage struct {
-	Message    string         `json:"message"`
-	Docker     DockerInfo     `json:"docker"`
-	Mesos      MesosInfo      `json:"mesos"`
-	Kubernetes KubernetesInfo `json:"kubernetes"`
+	Message    string     `json:"message"`
+        Stream     string     `json:"stream"`
+	Docker     DockerInfo `json:"docker"`
+        Kubernetes KubernetesInfo `json:"kubernetes"`
 }
