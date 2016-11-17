@@ -117,7 +117,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		} else {
 			// the message is already in JSON just add extra fields as a nested structures
 			jsonMsg["docker"] = dockerInfo
-                        data["stream"] = m.Source
+                        jsonMsg["stream"] = m.Source
 			jsonMsg["kubernetes"] = kubeInfo
 
                         // Return the JSON encoding
